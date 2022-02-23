@@ -3,6 +3,8 @@
 <!DOCTYPE html>
 <html>
 <head>
+	<!-- Adds new icons from font awesome -->
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   	<title>P3 Coloring</title>
 
@@ -10,6 +12,10 @@
 	<script type="text/javascript" src="{% static 'coloring/vendors/paper/paper-full.min.js' %}"></script>
 
 	<style type="text/css">
+
+		* {
+			box-sizing: border-box;
+		}
 		#color-palette {
 			width: 300px;
 			background-color: #f1f1f1;
@@ -35,6 +41,57 @@
 		    margin-right: auto;
 		    display: block;
 		}
+
+		.my_mixbutton {
+			width: 24px;
+			height: 24px;
+			margin: 3px;
+		}
+
+		.square {
+			width: 40px;
+			height: 40px;
+			border: 4px black solid;
+
+		}
+		
+		.slider_container {
+			width: 20vw;
+			height: 40px;
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			top: 20px;
+			box-sizing: border-box;
+			right: 20px;
+			position: absolute;
+		}
+
+		.slider {
+			width: auto;
+			height: 20px;
+			flex-grow: 1;
+			position: relative;
+		}
+
+		#color_controller {
+			display: flex;
+			flex-direction: row;
+		}
+
+
+		.slider_selector {
+			width: 30px;
+			height: 30px;
+			border-radius: 30px;
+			border: 2px black solid;
+			position: absolute;
+			top: -5px;
+			left: calc(50% - 15px);
+
+		}
+
+
 	</style>
 
 	<script type="text/javascript" canvas="canvas">
@@ -50,9 +107,12 @@
 
 			// color palette
 			var cp = {
-				history: ["#000000"], // black selected by default
+				history: ["rgb(0, 0, 0)"], // black selected by default
 				options: [],
-				$container: $('#color-palette')
+				$container: $('#color-palette'),
+				is_mixing: false,
+				click_times: 0,
+				$slider_container: null
 			}
 
 			function myCustomInteraction() {
@@ -68,6 +128,24 @@
 				}
 			}
 
+			function mix(c1, w1, c2, w2) {
+				function get_rgb(c) {
+					var rgb = c.substring(4,c.length - 1).split(", ")
+					r = parseInt(rgb[0])
+					g = parseInt(rgb[1])
+					b = parseInt(rgb[2])
+					return [r,g,b]
+				}			
+				var [r1, g1, b1] = get_rgb(c1)
+				var [r2, g2, b2] = get_rgb(c2)
+				console.log(c1, c2)
+				var [r_new, g_new, b_new] = [r1 * w1 + r2 * w2, g1 * w1 + g2 * w2, b1 * w1 + b2 * w2].map((x) => Math.floor(x))
+				console.log(r_new, b_new. g_new)
+				return `rgb(${r_new}, ${g_new}, ${b_new})`
+			}
+
+			
+
 			// create a color palette with the given colors
 			function createColorPalette(colors){
 
@@ -78,9 +156,87 @@
 					$swatch.click(function(){
 						// add color to the color palette history
 					  	cp.history.push($(this).css("background-color"));
+						if (cp.$slider_container) {
+							cp.$slider_container.hide()
+						}
 					});
 					cp.$container.append($swatch);
 				}
+
+				// Add the mixing icon
+				var $mix = $("<button>").addClass("swatch")
+				$mix.append($("<i>").addClass("fa-solid ").addClass("fa-palette"))
+				cp.$container.append($mix)
+
+
+				var $firstColor = $("<div id='firstColor'></div>")
+				var $secondColor = $("<div id='secondColor'></div>")
+				var $slider = $("<div>")
+				var $container = $("<div>")
+				cp.$slider_container = $container
+				var $slider_selector = $("<div>")
+				$slider_selector.addClass("slider_selector")
+				$container.addClass("slider_container")
+				$container.append($firstColor).append($slider).append($secondColor)
+				$container.css("display", "none")
+				$firstColor.addClass("square")
+				$secondColor.addClass("square")
+				$slider.addClass("slider")
+				$slider.append($slider_selector)
+				$("body").append($container);
+
+				function mouseMoveHandler(event) {
+				if (!cp.is_changing_color) {
+						return;
+					}
+					var {x: global_offset, width} = $slider[0].getBoundingClientRect();
+					var start = event.pageX;
+					var diff = start - global_offset;
+					if (diff < 0) {
+						diff = 0;
+					}
+					else if (diff > width){
+						diff = width
+					}
+					$slider_selector.css("left", `${diff - 15}px`)
+					var w2 = diff / width
+					var w1 = 1 - w2
+					var c = mix(cp.color1, w1, cp.color2, w2)
+					cp.curr_color = c;
+					$slider_selector.css("background-color", c)
+			}
+
+				$slider.mousedown((event) => {
+					cp.is_changing_color = true;
+					mouseMoveHandler(event)
+				})
+				$slider.mousemove(mouseMoveHandler)
+				$slider.mouseup ((event) => {
+					cp.is_changing_color = false;
+					cp.history.push(cp.curr_color)
+				})
+				$mix.click((event) =>  {
+					// Bring up the slider
+					if (cp.history.length < 2) {
+						return ;
+					}
+					var color1 = cp.history[cp.history.length - 2]
+					var color2 = cp.history[cp.history.length - 1]
+					cp.color1 = color1;
+					cp.color2 = color2;
+
+					// Bring up a slider
+					$firstColor.css("background-color",color1)
+					$secondColor.css("background-color",color2)
+					$slider.css("background", `linear-gradient(90deg, ${color1}, ${color2})`);
+					var c = mix(cp.color1, 0.5, cp.color2, 0.5)
+					cp.curr_color = c;
+					cp.history.push(cp.curr_color)
+					$slider_selector.css("background-color", c)
+					$slider_selector.css("left", "calc(50% - 15px)")
+					$container.css("display", "flex");
+				})
+
 			}
 
 			// loads a set of colors from a json to create a color palette
@@ -121,6 +277,9 @@
 <body>
 
 	<canvas id="myCanvas" width="750px" height="750px"></canvas>
-	<div id="color-palette"></div>
+	<div id="color_controller">
+		<div id="color-palette"></div>
+	</div>
+	
 </body>
 </html>
